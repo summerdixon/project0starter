@@ -1,0 +1,4 @@
+results/
+*.o
+client
+server
