@@ -24,13 +24,15 @@ int main(int argc, char** argv) {
     flags |= O_NONBLOCK;
     fcntl(sockfd, F_SETFL, flags);
 
+    flags = fcntl(0, F_GETFL);
+    flags |= O_NONBLOCK;
+    fcntl(0, F_SETFL, flags);
+
     // TODO: Construct server address
     struct sockaddr_in servaddr;
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = INADDR_ANY;
-
-    int PORT = 8080;
-    servaddr.sin_port = htons(PORT);
+    servaddr.sin_port = htons(port);
 
     // TODO: Bind address to socket
     int did_bind = bind(sockfd, (struct sockaddr*) &servaddr, 
@@ -52,13 +54,38 @@ int main(int argc, char** argv) {
                            0, (struct sockaddr*) &clientaddr, 
                            &clientsize);
         // TODO: If no data and client not connected, continue
-        if (bytes_recvd <= 0) continue;
+        if (bytes_recvd == 0 && client_connected == 0) continue;
         // TODO: If data, client is connected and write to stdout
+        if (bytes_recvd > 0)
+        {
+            if (!client_connected) client_connected = 1;
+            write(1, client_buf, bytes_recvd);
+        }
+        else if (bytes_recvd < 0)
+        {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) break;
+        }
+        
         // TODO: Read from stdin
-        // TODO: If data, send to socket
-
-        if (bytes_recvd < 0) return errno;
+        if (client_connected)
+        {
+            int bytes_read = read(0, client_buf, BUF_SIZE);
+            // TODO: If data, send to socket
+            if (bytes_read > 0) 
+            {
+                sendto(sockfd, client_buf, bytes_read,
+                      0, (struct sockaddr*) &clientaddr, 
+                      sizeof(clientaddr));
+            }
+            else if (bytes_read < 0)
+            {
+                if (errno != EAGAIN && errno != EWOULDBLOCK) break;
+            }
+        }
+        
     }
+
+    close(sockfd);
 
     return 0;
 }

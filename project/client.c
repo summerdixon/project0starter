@@ -26,19 +26,16 @@ int main(int argc, char** argv) {
     flags |= O_NONBLOCK;
     fcntl(sockfd, F_SETFL, flags);
 
+    flags = fcntl(0, F_GETFL);
+    flags |= O_NONBLOCK;
+    fcntl(0, F_SETFL, flags);
+
     // TODO: Construct server address
     struct sockaddr_in serveraddr;
     serveraddr.sin_family = AF_INET;
-    serveraddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    serveraddr.sin_addr.s_addr = inet_addr(addr);
     
-    int PORT = 8080;
-    serveraddr.sin_port = htons(PORT);
-
-    char client_buf[] = "Hello world!";
-    int did_send = sendto(sockfd, client_buf, strlen(client_buf),
-                      0, (struct sockaddr*) &serveraddr,
-                      sizeof(serveraddr));
-    if (did_send < 0) return errno;
+    serveraddr.sin_port = htons(port);
 
     int BUF_SIZE = 1024;
     char server_buf[BUF_SIZE];
@@ -47,16 +44,34 @@ int main(int argc, char** argv) {
     // Listen loop
     while (1) {
         // TODO: Receive from socket
-        // TODO: If data, write to stdout
-        // TODO: Read from stdin
-        // TODO: If data, send to socket
-
         int bytes_recvd = recvfrom(sockfd, server_buf, BUF_SIZE, 
                            0, (struct sockaddr*) &serveraddr, 
                            &serversize);
-        if (bytes_recvd < 0) return errno;
-        write(1, server_buf, bytes_recvd);
+        // TODO: If data, write to stdout
+        if (bytes_recvd > 0)
+        {
+            write(1, server_buf, bytes_recvd);
+        }
+        else if (bytes_recvd < 0)
+        {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) break;
+        }
+        // TODO: Read from stdin
+        int bytes_read = read(0, server_buf, BUF_SIZE);
+        // TODO: If data, send to socket
+        if (bytes_read > 0) 
+        {
+            sendto(sockfd, server_buf, bytes_read,
+                    0, (struct sockaddr*) &serveraddr, 
+                    sizeof(serveraddr));
+        }
+        else if (bytes_read < 0)
+        {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) break;
+        }
     }
+
+    close(sockfd);
 
     return 0;
 }
